@@ -1,0 +1,14 @@
+torch
+transformers==4.57.6
+accelerate
+tokenizers
+bitsandbytes
+vllm
+pandas
+numpy
+fastapi
+uvicorn
+opentelemetry-api
+opentelemetry-sdk
+triton
+
