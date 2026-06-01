@@ -132,6 +132,11 @@ void bias_backward(float *grad, float *grad_bias,
     }
 }
 
+// Zero out gradients
+void zero_grad(float *grad, int size) {
+    memset(grad, 0, size * sizeof(float));
+}
+
 // implementing the forward pass (wx+b)
 void forward_timed(NeuralNetwork *nn, float *batch_input, 
                 float *hidden, float *output, 
@@ -175,6 +180,11 @@ void backward_timed(NeuralNetwork *nn, float *batch_input, float *hidden,
                     TimingStats *stats){
     
     struct timespec step_start, step_end;
+
+    zero_grad(nn->grad_weights1, INPUT_SIZE*HIDDEN_SIZE);
+    zero_grad(nn->grad_weights2, HIDDEN_SIZE*OUTPUT_SIZE);
+    zero_grad(nn->grad_bias1, HIDDEN_SIZE);
+    zero_grad(nn->grad_bias2, OUTPUT_SIZE);
 
     //loss backward linear layer2
     clock_gettime(CLOCK_MONOTONIC, &step_start); 
@@ -384,6 +394,15 @@ int read_int_big_endian(FILE *f) {
     return (b[0] << 24) | (b[1] << 16) | (b[2] << 8) | b[3];
 }
 
+// normalize data using MNIST mean and std
+void normalize_data(float *data, int size) {
+    const float mean = 0.1307f;
+    const float std = 0.3081f;
+    for (int i = 0; i < size; i++) {
+        data[i] = (data[i] - mean) / std;
+    }
+}
+
 int load_mnist(float *X, int *y, int max_samples,
                const char *image_path, const char *label_path) {
     
@@ -498,6 +517,8 @@ int main(void) {
          "data/MNIST/raw/train-labels-idx1-ubyte");
     if (!loaded) { free(X_train); free(y_train); return 1; }
 
+    normalize_data(X_train, TRAIN_SIZE*INPUT_SIZE);
+    
     // Init network
     NeuralNetwork nn;
     initialize_neural_network(&nn);

@@ -218,6 +218,21 @@ __global__ void bias_backward_kernel(float *grad_bias, float *grad,
     }
 }
 
+void normalize_data(float *data, int size) {
+    const float mean = 0.1307f;
+    const float std = 0.3081f;
+    for (int i = 0; i < size; i++) {
+        data[i] = (data[i] - mean) / std;
+    }
+}
+
+// Zero gradients kernel
+__global__ void zero_grad_kernel(float *grad, int size) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < size) {
+        grad[idx] = 0.0f;
+    }
+}
 
 // seting up the training loop
 void forward_pass(NeuralNetwork *nn, float *input, float *hidden,
@@ -287,15 +302,14 @@ float *output, int batch_size, TimingStats *stats){
 void backward_pass(NeuralNetwork *nn, float *input, float *hidden,
 float *output, int *labels, int batch_size, TimingStats *stats){
     struct timespec step_start, step_end;
-    
     dim3 block_size(32,32);
 
-  //  float *grad_output, *dX2;
-    //CUDA_CHECK(cudaMalloc(&grad_output, batch_size*OUTPUT_SIZE*
-    //sizeof(float)));
-   // CUDA_CHECK(cudaMalloc(&dX2, batch_size * HIDDEN_SIZE * sizeof(float)));
-   // CUDA_CHECK(cudaMalloc(&d_ReLU_out, batch_size * HIDDEN_SIZE * 
-    //sizeof(float)));
+    zero_grad_kernel<<<(HIDDEN_SIZE*INPUT_SIZE+255)/256, 256>>>(
+        nn->grad_weights1, HIDDEN_SIZE*INPUT_SIZE);
+    zero_grad_kernel<<<(HIDDEN_SIZE*OUTPUT_SIZE+255)/256, 256>>>(
+        nn->grad_weights2, HIDDEN_SIZE*OUTPUT_SIZE);
+    zero_grad_kernel<<<(HIDDEN_SIZE+255)/256, 256>>>(nn->grad_bias1, HIDDEN_SIZE);
+    zero_grad_kernel<<<(OUTPUT_SIZE+255)/256, 256>>>(nn->grad_bias2, OUTPUT_SIZE);
 
     // compute gradient from softmax and cross_entropy
     clock_gettime(CLOCK_MONOTONIC, &step_start);
@@ -614,6 +628,7 @@ int main(void) {
          "data/MNIST/raw/train-images-idx3-ubyte",
          "data/MNIST/raw/train-labels-idx1-ubyte");
     if (!loaded) { free(X_train); free(y_train); return 1; }
+    normalize_data(X_train, TRAIN_SIZE*INPUT_SIZE);
 
     // Init network
     NeuralNetwork nn;
